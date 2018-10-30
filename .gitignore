@@ -2,6 +2,7 @@
 *.APN
 *.DOC
 *.pdf
+*.*lock*
 datasets/
 output/
 ./*.yaml
