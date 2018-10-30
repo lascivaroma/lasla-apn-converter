@@ -19,28 +19,37 @@ _column = re.compile(
     "(?P<pos>[A-Z][0-9]?)?")
 
 _lemma = re.compile("\w{3}[&=]\d+([A-Z]+)\s+(\w?)")
+_sent = re.compile("\w{3}[&=](\d+)")
+_token = re.compile(
+    "(<\w+>\s)?"  # ???
+    "(?P<token>(in )?[\w\.]+)"
+    "(\s[<\(]\w+[>\)])?"
+)
 
 
-def parse_line(line: str) -> dict:
+def parse_line(line: str, last_sent: str) -> dict:
     line = line.replace("\n", "")
     if not line.strip():
         return None
     lemma, lemma_n = _lemma.match(line[:30]).groups()
-    form = line[30:55].strip()
+    sent, *_ = _sent.match(line[:30]).groups()
+    form = _token.sub("\g<token>", line[30:55].strip())
     _ = line[55:67]
     morph = line[67:78]
     pos = line[78:].replace(" ", "") or morph[0]
 
-    return {"lemma": lemma, "lemma_n": lemma_n, "form": form, "morph": morph, "pos": pos}
+    return {"lemma": lemma, "lemma_n": lemma_n, "form": form, "morph": morph, "pos": pos,
+            "new": sent}
 
 
 def convert_apn(file, transform_morph=True):
     print("Treating " + file)
-    content = "form\tlemma\tmorph\tpos\n"
+    content = "form\tlemma\tmorph\tpos\tindex\n"
     with open(file) as f:
+        last = False
         for line in f.readlines():
             try:
-                annotation = parse_line(line)
+                annotation = parse_line(line, last)
             except Exception as E:
                 print(file, line)
                 raise E
@@ -56,8 +65,14 @@ def convert_apn(file, transform_morph=True):
                     annotation["form"],
                     annotation["lemma"]+annotation["lemma_n"],
                     annotation["morph"],
-                    annotation["pos"]
+                    annotation["pos"],
+                    annotation["new"]
                 ])+"\n"
+
+                if annotation["new"] != last and last != False:
+                    content += "\n"
+
+                last = annotation["new"]
 
     return {"path": file, "content": content}
 
@@ -191,7 +206,7 @@ def convert_morph(morph_code: str) -> typing.Dict[str, str]:
         if morph_char.strip()
     ]
     if not morph:
-        morph = "MORPH=EMPTY"
+        morph = ["MORPH=EMPTY"]
 
     return {"pos": convert_pos(pos), "morph": "|".join(morph)}
 
@@ -225,9 +240,9 @@ def cli(source, output, threads=1, enhanced_morph=False):
     os.makedirs(output, exist_ok=True)
 
     if enhanced_morph:
-        convert_fn = convert_apn_light
-    else:
         convert_fn = convert_apn
+    else:
+        convert_fn = convert_apn_light
 
     # Process as threads
     with multiprocessing.Pool(processes=threads) as pool:
