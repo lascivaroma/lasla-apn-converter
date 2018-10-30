@@ -190,6 +190,8 @@ def convert_morph(morph_code: str) -> typing.Dict[str, str]:
         for index, morph_char in enumerate(morph)
         if morph_char.strip()
     ]
+    if not morph:
+        morph = "MORPH=EMPTY"
 
     return {"pos": convert_pos(pos), "morph": "|".join(morph)}
 
