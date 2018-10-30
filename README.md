@@ -7,9 +7,6 @@ of the LASLA into more traditional tags. See below for examples.
 
 We recommend to do a `chmod +x cli.py`.
 
-At the time you need `Click` installed, we will remove this problem
-later.
-
 ## Examples
 
 ### Input

@@ -1,0 +1,66 @@
+label   Readable
+Case=Nom|Numb=Plur  Nominaif Pluriel
+Case=Nom|Numb=Sing  Nominaif Singulier
+Case=Voc|Numb=Plur  Vocatif Pluriel
+Case=Voc|Numb=Sing  Vocatif Singulier
+Case=Acc|Numb=Plur  Accusatif Pluriel
+Case=Acc|Numb=Sing  Accusatif Singulier
+Case=Gen|Numb=Plur  Genitif Pluriel
+Case=Gen|Numb=Sing  Genitif Singulier
+Case=Dat|Numb=Plur  Datif Pluriel
+Case=Dat|Numb=Sing  Datif Singulier
+Case=Abl|Numb=Plur  Ablatif Pluriel
+Case=Abl|Numb=Sing  Ablatif Singulier
+Case=Loc|Numb=Plur  Locatif Pluriel
+Case=Loc|Numb=Sing  Locatif Singulier
+Case=Ind|Numb=Plur  Indeclinable Pluriel
+Case=Ind|Numb=Sing  Indeclinable Singulier
+# Adj
+Case=Nom|Numb=Plur|Deg=Pos  Nominaif Pluriel Positif
+Case=Nom|Numb=Plur|Deg=Comp  Nominaif Pluriel Comparatif
+Case=Nom|Numb=Plur|Deg=Sup  Nominaif Pluriel Superlatif
+Case=Nom|Numb=Sing|Deg=Pos  Nominaif Singulier Positif
+Case=Nom|Numb=Sing|Deg=Comp  Nominaif Singulier Comparatif
+Case=Nom|Numb=Sing|Deg=Sup  Nominaif Singulier Superlatif
+Case=Voc|Numb=Plur|Deg=Pos  Vocatif Pluriel Positif
+Case=Voc|Numb=Plur|Deg=Comp  Vocatif Pluriel Comparatif
+Case=Voc|Numb=Plur|Deg=Sup  Vocatif Pluriel Superlatif
+Case=Voc|Numb=Sing|Deg=Pos  Vocatif Singulier Positif
+Case=Voc|Numb=Sing|Deg=Comp  Vocatif Singulier Comparatif
+Case=Voc|Numb=Sing|Deg=Sup  Vocatif Singulier Superlatif
+Case=Acc|Numb=Plur|Deg=Pos  Accusatif Pluriel Positif
+Case=Acc|Numb=Plur|Deg=Comp  Accusatif Pluriel Comparatif
+Case=Acc|Numb=Plur|Deg=Sup  Accusatif Pluriel Superlatif
+Case=Acc|Numb=Sing|Deg=Pos  Accusatif Singulier Positif
+Case=Acc|Numb=Sing|Deg=Comp  Accusatif Singulier Comparatif
+Case=Acc|Numb=Sing|Deg=Sup  Accusatif Singulier Superlatif
+Case=Gen|Numb=Plur|Deg=Pos  Genitif Pluriel Positif
+Case=Gen|Numb=Plur|Deg=Comp  Genitif Pluriel Comparatif
+Case=Gen|Numb=Plur|Deg=Sup  Genitif Pluriel Superlatif
+Case=Gen|Numb=Sing|Deg=Pos  Genitif Singulier Positif
+Case=Gen|Numb=Sing|Deg=Comp  Genitif Singulier Comparatif
+Case=Gen|Numb=Sing|Deg=Sup  Genitif Singulier Superlatif
+Case=Dat|Numb=Plur|Deg=Pos  Datif Pluriel Positif
+Case=Dat|Numb=Plur|Deg=Comp  Datif Pluriel Comparatif
+Case=Dat|Numb=Plur|Deg=Sup  Datif Pluriel Superlatif
+Case=Dat|Numb=Sing|Deg=Pos  Datif Singulier Positif
+Case=Dat|Numb=Sing|Deg=Comp  Datif Singulier Comparatif
+Case=Dat|Numb=Sing|Deg=Sup  Datif Singulier Superlatif
+Case=Abl|Numb=Plur|Deg=Pos  Ablatif Pluriel Positif
+Case=Abl|Numb=Plur|Deg=Comp  Ablatif Pluriel Comparatif
+Case=Abl|Numb=Plur|Deg=Sup  Ablatif Pluriel Superlatif
+Case=Abl|Numb=Sing|Deg=Pos  Ablatif Singulier Positif
+Case=Abl|Numb=Sing|Deg=Comp  Ablatif Singulier Comparatif
+Case=Abl|Numb=Sing|Deg=Sup  Ablatif Singulier Superlatif
+Case=Loc|Numb=Plur|Deg=Pos  Locatif Pluriel Positif
+Case=Loc|Numb=Plur|Deg=Comp  Locatif Pluriel Comparatif
+Case=Loc|Numb=Plur|Deg=Sup  Locatif Pluriel Superlatif
+Case=Loc|Numb=Sing|Deg=Pos  Locatif Singulier Positif
+Case=Loc|Numb=Sing|Deg=Comp  Locatif Singulier Comparatif
+Case=Loc|Numb=Sing|Deg=Sup  Locatif Singulier Superlatif
+Case=Ind|Numb=Plur|Deg=Pos  Indeclinable Pluriel Positif
+Case=Ind|Numb=Plur|Deg=Comp  Indeclinable Pluriel Comparatif
+Case=Ind|Numb=Plur|Deg=Sup  Indeclinable Pluriel Superlatif
+Case=Ind|Numb=Sing|Deg=Pos  Indeclinable Singulier Positif
+Case=Ind|Numb=Sing|Deg=Comp  Indeclinable Singulier Comparatif
+Case=Ind|Numb=Sing|Deg=Sup  Indeclinable Singulier Superlatif

@@ -3,20 +3,8 @@ import glob
 import multiprocessing
 import re
 import typing
+import argparse
 
-import click
-
-
-_column = re.compile(
-    "\w{3}[&=]\d+"
-    "(?P<lemma>[A-Z]+)\s+"
-    "(?P<lemma_nb>\d)?"
-    "(<\w+>\s)?"  # ???
-    "(?P<token>(in )?[\w\.]+)"
-    "(\s[<\(]\w+[>\)])?\s+"  # ???
-    "[\d,]+\s+"
-    "(?P<morph>([A-Z][0-9 \*]+)|#)"
-    "(?P<pos>[A-Z][0-9]?)?")
 
 _lemma = re.compile("\w{3}[&=]\d+([A-Z]+)\s+(\w?)")
 _sent = re.compile("\w{3}[&=](\d+)")
@@ -160,17 +148,6 @@ _morphs = [
         "8": "Mood=SupU",
         "9": "Mood=SupUm",
     },
-    {   # Mode
-        "1": "Mood=Ind",
-        "2": "Mood=Sub",
-        "3": "Mood=Imp",
-        "4": "Mood=Par",
-        "5": "Mood=Inf",
-        "6": "Mood=Adj",
-        "7": "Mood=Ger",
-        "8": "Mood=SupU",
-        "9": "Mood=SupUm",
-    },
     {   # Temps
 
         "1": "Tense=Pres",
@@ -224,11 +201,6 @@ def write(path: str, content: str, output: str) -> None:
         f.write(content)
 
 
-@click.command()
-@click.argument("source", type=click.Path(exists=True))
-@click.argument("output", type=click.Path(exists=False))
-@click.option("--threads", type=click.INT)
-@click.option("--enhanced_morph", is_flag=True)
 def cli(source, output, threads=1, enhanced_morph=False):
     # First, we move from the input to a list of files
     # If this is a single file, we put it in a list, otherwise we retrieve all .APN files
@@ -251,4 +223,12 @@ def cli(source, output, threads=1, enhanced_morph=False):
 
 
 if __name__ == '__main__':
-    cli()
+    arg = argparse.ArgumentParser(description="Converter of LASLA APN to TSV")
+    arg.add_argument("source", help="Source file or directory (Must contain .APN"
+                                    " files)")
+    arg.add_argument("output", help="Output directory where new files will be saved")
+    arg.add_argument("--threads", type=int, help="Number of threads to use")
+    arg.add_argument("--enhanced_morph", action="store_true", default=False,
+                     help="Replace morphology tags from LASLA with more conventional ones")
+    args = arg.parse_args()
+    cli(args.source, args.output, args.threads, args.enhanced_morph)
