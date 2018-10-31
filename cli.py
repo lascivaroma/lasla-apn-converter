@@ -51,7 +51,7 @@ def convert_apn(file, transform_morph=True):
 
                 content += "\t".join([
                     annotation["form"],
-                    annotation["lemma"]+annotation["lemma_n"],
+                    annotation["lemma"]+"_"+annotation["lemma_n"],
                     annotation["morph"],
                     annotation["pos"],
                     annotation["new"]
@@ -173,6 +173,42 @@ _morphs = [
     }
 ]
 
+_readable_vb = x = [
+    [
+        "Singulier",
+        "Pluriel"
+    ], [
+        "Indicatif",
+        "Subjonctif",
+        "Impératif",
+        "Participe",
+        "Infinitif",
+        "Adjectif verbal",
+        "Gérondif",
+        "Supin en -UM",
+        "Supin en -U"
+    ], [
+        "Présent",
+        "Imparfait",
+        "Futur",
+        "Parfait",
+        "Plus-que-parfait",
+        "Futur antérieur",
+        "Périphrase au parfait",
+        "Périphrase au plus-que-parfait",
+        "Périphrase au futur antérieur"
+    ], [
+        "Actif",
+        "Passif",
+        "Déponent",
+        "Semi-déponent"
+    ], [
+        "1re pers",
+        "2e pers",
+        "3e pers"
+    ]
+]
+
 
 def convert_morph(morph_code: str) -> typing.Dict[str, str]:
     pos, morph = morph_code[:2], morph_code[2:9]
@@ -220,6 +256,28 @@ def cli(source, output, threads=1, enhanced_morph=False):
     with multiprocessing.Pool(processes=threads) as pool:
         for item in pool.imap_unordered(convert_fn, iterable=input_files):
             write(output=output, **item)
+
+
+def morph_to_tsv():
+    def loop_string(codes=None, readable=None, remaining_code=None, remaining_readable=None):
+        codes = codes or list()
+        readable = readable or list()
+
+        for index, code in enumerate(remaining_code[0].values()):
+            new_code = codes + [code]
+            new_readable = readable + [remaining_readable[0][index]]
+            if len(remaining_code) == 1:
+                yield ["|".join(new_code),
+                       " ".join([new_readable[index]
+                                 for index in [4, 0, 1, 2, 3]])]
+            else:
+                yield from loop_string(new_code, new_readable, remaining_code[1:], remaining_readable[1:])
+
+    rearranged_codes = [_morphs[1], _morphs[3], _morphs[4], _morphs[5], _morphs[6]]
+    rearranged_readable = _readable_vb
+
+    for c, r in loop_string(remaining_code=rearranged_codes, remaining_readable=rearranged_readable):
+        yield c + "\t" + r
 
 
 if __name__ == '__main__':
