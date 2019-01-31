@@ -14,6 +14,8 @@ _token = re.compile(
     "(\s[<\(]\w+[>\)])?"
 )
 
+remove_added = re.compile("(\s?[<\(]\w+[>\)]\s?)")
+
 
 def parse_line(line: str) -> typing.Optional[dict]:
     """ Parse a single line into each information
@@ -42,7 +44,7 @@ def parse_line_bpn(line: str) -> typing.Optional[dict]:
     :return: Dictionary representing the information about the token
     """
     line = line.replace("\n", "")
-    if not line.strip():
+    if not line.strip() or line.endswith("#            "):
         return None
     connection_sign = line[3]
     if connection_sign == "#":  # Forme de contraction, présent à partir du deuxième lemme
@@ -51,9 +53,11 @@ def parse_line_bpn(line: str) -> typing.Optional[dict]:
         return None  # At the moment, let's not care about it
     elif connection_sign == "&":
         write = True
+
     lemma, lemma_n = line[8:29].strip(), line[29]
     sent = line[4:8]
     form = line[30:55].strip()
+    form = remove_added.sub("", form)
 
     if lemma != "#":  # Which is used for Greek words
         morph = line[67:77]
@@ -66,13 +70,15 @@ def parse_line_bpn(line: str) -> typing.Optional[dict]:
             "new": sent}
 
 
-def convert_apn(file: str, transform_morph: bool=True, line_parser: typing.Callable=parse_line) -> dict:
+def convert_apn(file: str, transform_morph: bool=True, line_parser: typing.Callable=parse_line,
+                no_disambiguation : bool = False) -> dict:
     """ Take a single file path and transform the data into
     a new TSV file
 
     :param file: File to read
     :param transform_morph: Morphological information transformation
     :param line_parser: Function to use to parse files
+    :param no_disambiguation: Removes `_\w` from the lemma information
     :return: Dict with "content" for String representation of the TSV conversion and "file" for original filepath
     """
     print("Treating " + file)
@@ -99,25 +105,34 @@ def convert_apn(file: str, transform_morph: bool=True, line_parser: typing.Calla
                                 error.append(line)
                                 annotation["morph"] = annotation["morph"].replace("ERROR|", "")
 
+                    lemma = annotation["lemma"]+"_"+annotation["lemma_n"]
+                    if no_disambiguation:
+                        lemma = lemma.split("_")[0]
+
+                    if annotation["new"] != last and last != False:
+                        content += "\n"
+
                     content += "\t".join([
                         annotation["form"],
-                        annotation["lemma"]+"_"+annotation["lemma_n"],
+                        lemma,
                         annotation["morph"],
                         annotation["pos"],
                         annotation["new"]
                     ])+"\n"
 
-                    if annotation["new"] != last and last != False:
-                        content += "\n"
-
                     last = annotation["new"]
+
         except Exception as E:
             error.append(line)
 
     return {"path": file, "content": content, "error": error}
 
 
-def convert_bpn(file: str, transform_morph: bool=True) -> dict:
+def convert_bpn_nodis(file: str) -> dict:
+    return convert_apn(file=file, line_parser=parse_line_bpn, no_disambiguation=True)
+
+
+def convert_bpn(file: str, transform_morph: bool=True, no_disambiguation: bool = False) -> dict:
     return convert_apn(file=file, line_parser=parse_line_bpn)
 
 
@@ -132,9 +147,9 @@ def convert_apn_light(file: str) -> dict:
 
 
 _cat = {
-    "A": ("NOM", lambda x: x),
-    "B": ("VER", lambda x: x),
-    "C": ("ADJ", lambda x: "qua"+x),
+    "A": ("NOM", lambda x: ""),
+    "B": ("VER", lambda x: ""),
+    "C": ("ADJ", lambda x: "qua"+""),
     "D": ("ADJ", {"1": "car", "2": "ord", "3": "dis", "4": "mul", "5": "adv.ord", "6": "adv.mul"}),
     "E": ("PROper", None),
     "F": ("PROpos", None),
@@ -294,13 +309,12 @@ def write(path: str, content: str, output: str, extension: str = "APN", error: t
     with open(target, "w") as f:
         f.write(content)
     if error:
-        print(error)
         with open(os.path.join(output, "error.txt"), "a") as f:
             f.write("\n".join([""] + [filename+"\t\t"+err.strip() for err in error]))
 
 
-def cli(source: str, output: str, threads: int=1, enhanced_morph: bool=False,
-        bpn: bool=False):
+def cli(source: str, output: str, threads: int = 1, enhanced_morph: bool=False,
+        bpn: bool=False, no_disambiguation: bool = False):
     """ Convert APN/BPN files in source dir to tabular data in output dir
 
     :param source: A folder path as string containing APN/BPN
@@ -308,6 +322,7 @@ def cli(source: str, output: str, threads: int=1, enhanced_morph: bool=False,
     :param threads: Number of threads to user for the conversion
     :param enhanced_morph: Enhance the morphological information
     :param bpn: Search and parse BPN instead of APN
+    :param no_disambiguation: Remove disambiguation from lemma
     """
     extension = "APN"
     if bpn:
@@ -322,7 +337,10 @@ def cli(source: str, output: str, threads: int=1, enhanced_morph: bool=False,
     os.makedirs(output, exist_ok=True)
 
     if extension == "BPN":
-        convert_fn = convert_bpn
+        if no_disambiguation:
+            convert_fn = convert_bpn_nodis
+        else:
+            convert_fn = convert_bpn
     else:
         if enhanced_morph:
             convert_fn = convert_apn
@@ -366,5 +384,8 @@ if __name__ == '__main__':
     arg.add_argument("--threads", type=int, help="Number of threads to use")
     arg.add_argument("--enhanced_morph", action="store_true", default=False,
                      help="Replace morphology tags from LASLA with more conventional ones")
+    arg.add_argument("--no-disambiguation", dest="no_disambiguation", action="store_true", default=False,
+                     help="Does not keep lemma disambiguation")
     args = arg.parse_args()
-    cli(args.source, args.output, args.threads, args.enhanced_morph, bpn=args.bpn)
+    cli(args.source, args.output, args.threads, args.enhanced_morph, bpn=args.bpn,
+        no_disambiguation=args.no_disambiguation)
