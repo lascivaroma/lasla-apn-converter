@@ -15,7 +15,12 @@ _token = re.compile(
 )
 
 
-def parse_line(line: str, last_sent: str) -> dict:
+def parse_line(line: str) -> typing.Optional[dict]:
+    """ Parse a single line into each information
+
+    :param line: Input line from APN
+    :return: Dictionary representing the information about the token
+    """
     line = line.replace("\n", "")
     if not line.strip():
         return None
@@ -30,39 +35,90 @@ def parse_line(line: str, last_sent: str) -> dict:
             "new": sent}
 
 
-def convert_apn(file, transform_morph=True):
+def parse_line_bpn(line: str) -> typing.Optional[dict]:
+    """ Parse a single line into each information
+
+    :param line: Input line from APN
+    :return: Dictionary representing the information about the token
+    """
+    line = line.replace("\n", "")
+    if not line.strip():
+        return None
+    connection_sign = line[3]
+    if connection_sign == "#":  # Forme de contraction, présent à partir du deuxième lemme
+        return None  # At the moment, let's not care about it
+    elif connection_sign == "=":  # QUE : doit être collé au précédent
+        return None  # At the moment, let's not care about it
+    elif connection_sign == "&":
+        write = True
+    lemma, lemma_n = line[8:29].strip(), line[29]
+    sent = line[4:8]
+    form = line[30:55].strip()
+
+    if lemma != "#":  # Which is used for Greek words
+        morph = line[67:77]
+        pos = line[78:].replace(" ", "") or morph[0]
+    else:
+        morph = ""
+        pos = ""
+
+    return {"lemma": lemma, "lemma_n": lemma_n, "form": form, "morph": morph, "pos": pos,
+            "new": sent}
+
+
+def convert_apn(file: str, transform_morph: bool=True, line_parser: typing.Callable=parse_line) -> dict:
+    """ Take a single file path and transform the data into
+    a new TSV file
+
+    :param file: File to read
+    :param transform_morph: Morphological information transformation
+    :param line_parser: Function to use to parse files
+    :return: Dict with "content" for String representation of the TSV conversion and "file" for original filepath
+    """
     print("Treating " + file)
+    error = []
     content = "form\tlemma\tmorph\tpos\tindex\n"
     with open(file) as f:
         last = False
-        for line in f.readlines():
-            try:
-                annotation = parse_line(line, last)
-            except Exception as E:
-                print(file, line)
-                raise E
+        try:
+            for line in f.readlines():
+                try:
+                    annotation = line_parser(line)
+                except Exception as E:
+                    error.append(line)
+                    raise E
 
-            # If we were able to parse
-            if annotation:
+                # If we were able to parse
+                if annotation:
 
-                # If we want to transform the morph to another format
-                if transform_morph:
-                    annotation.update(convert_morph(annotation["morph"]))
+                    # If we want to transform the morph to another format
+                    if transform_morph:
+                        if annotation["morph"] != "":  # Safe keeping against empty morph
+                            annotation.update(convert_morph(annotation["morph"]))
+                            if "ERROR|" in annotation["morph"]:
+                                error.append(line)
+                                annotation["morph"] = annotation["morph"].replace("ERROR|", "")
 
-                content += "\t".join([
-                    annotation["form"],
-                    annotation["lemma"]+"_"+annotation["lemma_n"],
-                    annotation["morph"],
-                    annotation["pos"],
-                    annotation["new"]
-                ])+"\n"
+                    content += "\t".join([
+                        annotation["form"],
+                        annotation["lemma"]+"_"+annotation["lemma_n"],
+                        annotation["morph"],
+                        annotation["pos"],
+                        annotation["new"]
+                    ])+"\n"
 
-                if annotation["new"] != last and last != False:
-                    content += "\n"
+                    if annotation["new"] != last and last != False:
+                        content += "\n"
 
-                last = annotation["new"]
+                    last = annotation["new"]
+        except Exception as E:
+            error.append(line)
 
-    return {"path": file, "content": content}
+    return {"path": file, "content": content, "error": error}
+
+
+def convert_bpn(file: str, transform_morph: bool=True) -> dict:
+    return convert_apn(file=file, line_parser=parse_line_bpn)
 
 
 def convert_apn_light(file: str) -> dict:
@@ -98,6 +154,7 @@ _cat = {
     "T": ("CONsub", None),
     "U": ("INJ", None),
     "#": ("VERaux", None),
+    "0": ("", None)
 }
 
 
@@ -138,18 +195,19 @@ _morphs = [
         "3": "Deg=Sup"
     },
     {   # Mode
+        "0": "ERROR",  # Ignore (We had one for an agendis annotation)
         "1": "Mood=Ind",
         "2": "Mood=Sub",
         "3": "Mood=Imp",
         "4": "Mood=Par",
-        "5": "Mood=Inf",
-        "6": "Mood=Adj",
-        "7": "Mood=Ger",
+        "7": "Mood=Inf",
+        "5": "Mood=Adj",
+        "6": "Mood=Ger",
         "8": "Mood=SupU",
         "9": "Mood=SupUm",
     },
     {   # Temps
-
+        "0": "ERROR",  # Ignore (We had one for an agendis annotation)
         "1": "Tense=Pres",
         "2": "Tense=Impa",
         "3": "Tense=Fut",
@@ -212,7 +270,6 @@ _readable_vb = x = [
 
 def convert_morph(morph_code: str) -> typing.Dict[str, str]:
     pos, morph = morph_code[:2], morph_code[2:9]
-
     morph = [
         _morphs[index][morph_char]
         for index, morph_char in enumerate(morph)
@@ -220,42 +277,62 @@ def convert_morph(morph_code: str) -> typing.Dict[str, str]:
     ]
     if not morph:
         morph = ["MORPH=EMPTY"]
-
     return {"pos": convert_pos(pos), "morph": "|".join(morph)}
 
 
-def write(path: str, content: str, output: str) -> None:
+def write(path: str, content: str, output: str, extension: str = "APN", error: typing.List[str] = None) -> None:
     """ Writes the converted content to the new file given path and output
 
     :param path: Path of the current file
     :param content: Content to be written
     :param output: Directory containing the output
+    :param extension: Extension to write to
+    :param error: List of errors that happened
     """
-    filename = os.path.basename(path).replace(".APN", ".tsv")
+    filename = os.path.basename(path).replace("."+extension, ".tsv")
     target = os.path.join(output, filename)
     with open(target, "w") as f:
         f.write(content)
+    if error:
+        print(error)
+        with open(os.path.join(output, "error.txt"), "a") as f:
+            f.write("\n".join([""] + [filename+"\t\t"+err.strip() for err in error]))
 
 
-def cli(source, output, threads=1, enhanced_morph=False):
+def cli(source: str, output: str, threads: int=1, enhanced_morph: bool=False,
+        bpn: bool=False):
+    """ Convert APN/BPN files in source dir to tabular data in output dir
+
+    :param source: A folder path as string containing APN/BPN
+    :param output: Output folder for the transformation
+    :param threads: Number of threads to user for the conversion
+    :param enhanced_morph: Enhance the morphological information
+    :param bpn: Search and parse BPN instead of APN
+    """
+    extension = "APN"
+    if bpn:
+        extension = "BPN"
     # First, we move from the input to a list of files
     # If this is a single file, we put it in a list, otherwise we retrieve all .APN files
     input_files = [source]
     if os.path.isdir(source):
-        input_files = glob.glob(os.path.join(source, "*.APN"), recursive=True)
+        input_files = glob.glob(os.path.join(source, "*."+extension), recursive=True)
 
     # Create directory
     os.makedirs(output, exist_ok=True)
 
-    if enhanced_morph:
-        convert_fn = convert_apn
+    if extension == "BPN":
+        convert_fn = convert_bpn
     else:
-        convert_fn = convert_apn_light
+        if enhanced_morph:
+            convert_fn = convert_apn
+        else:
+            convert_fn = convert_apn_light
 
     # Process as threads
     with multiprocessing.Pool(processes=threads) as pool:
         for item in pool.imap_unordered(convert_fn, iterable=input_files):
-            write(output=output, **item)
+            write(output=output, extension=extension, **item)
 
 
 def morph_to_tsv():
@@ -285,8 +362,9 @@ if __name__ == '__main__':
     arg.add_argument("source", help="Source file or directory (Must contain .APN"
                                     " files)")
     arg.add_argument("output", help="Output directory where new files will be saved")
+    arg.add_argument("--bpn", help="Activate BPN parsing instead of APN", action="store_true", default=False)
     arg.add_argument("--threads", type=int, help="Number of threads to use")
     arg.add_argument("--enhanced_morph", action="store_true", default=False,
                      help="Replace morphology tags from LASLA with more conventional ones")
     args = arg.parse_args()
-    cli(args.source, args.output, args.threads, args.enhanced_morph)
+    cli(args.source, args.output, args.threads, args.enhanced_morph, bpn=args.bpn)
