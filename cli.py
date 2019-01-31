@@ -19,133 +19,136 @@ _token = re.compile(
 remove_added = re.compile("(\s?[<\(]\w+[>\)]\s?)")
 
 
-def parse_line(line: str) -> typing.Optional[dict]:
-    """ Parse a single line into each information
+class Parser:
+    def __init__(self,
+                 transform_morph: bool = True, no_disambiguation: bool = False, bpn: bool = False,
+                 lowercase: bool = False):
+        """
 
-    :param line: Input line from APN
-    :return: Dictionary representing the information about the token
-    """
-    line = line.replace("\n", "")
-    if not line.strip():
-        return None
-    lemma, lemma_n = _lemma.match(line[:30]).groups()
-    sent, *_ = _sent.match(line[:30]).groups()
-    form = _token.sub("\g<token>", line[30:55].strip())
-    _ = line[55:67]
-    morph = line[67:78]
-    pos = line[78:].replace(" ", "") or morph[0]
+        :param transform_morph: Morphological information transformation
+        :param no_disambiguation: Removes `_\w` from the lemma information
+        :param bpn: Whether the parser parse BPN
+        :param lowercase: Moves lemma to lowercase
+        """
+        self.transform_morph = transform_morph
+        self.no_disambiguation = no_disambiguation
+        self.bpn = bpn
+        self.lowercase = lowercase
 
-    return {"lemma": lemma, "lemma_n": lemma_n, "form": form, "morph": morph, "pos": pos,
-            "new": sent}
+    @staticmethod
+    def bpn_line(line: str) -> typing.Optional[dict]:
+        """ Parse a single line into each information
 
+        :param line: Input line from APN
+        :return: Dictionary representing the information about the token
+        """
+        line = line.replace("\n", "")
+        if not line.strip() or line.endswith("#            "):
+            return None
+        connection_sign = line[3]
+        if connection_sign == "#":  # Forme de contraction, présent à partir du deuxième lemme
+            return None  # At the moment, let's not care about it
+        elif connection_sign == "=":  # QUE : doit être collé au précédent
+            return None  # At the moment, let's not care about it
+        elif connection_sign == "&":
+            write = True
 
-def parse_line_bpn(line: str) -> typing.Optional[dict]:
-    """ Parse a single line into each information
+        lemma, lemma_n = line[8:29].strip(), line[29]
+        sent = line[4:8]
+        form = line[30:55].strip()
+        form = remove_added.sub("", form)
 
-    :param line: Input line from APN
-    :return: Dictionary representing the information about the token
-    """
-    line = line.replace("\n", "")
-    if not line.strip() or line.endswith("#            "):
-        return None
-    connection_sign = line[3]
-    if connection_sign == "#":  # Forme de contraction, présent à partir du deuxième lemme
-        return None  # At the moment, let's not care about it
-    elif connection_sign == "=":  # QUE : doit être collé au précédent
-        return None  # At the moment, let's not care about it
-    elif connection_sign == "&":
-        write = True
+        if lemma != "#":  # Which is used for Greek words
+            morph = line[67:77]
+            pos = line[78:].replace(" ", "") or morph[0]
+        else:
+            morph = ""
+            pos = ""
 
-    lemma, lemma_n = line[8:29].strip(), line[29]
-    sent = line[4:8]
-    form = line[30:55].strip()
-    form = remove_added.sub("", form)
+        return {"lemma": lemma, "lemma_n": lemma_n, "form": form, "morph": morph, "pos": pos,
+                "new": sent}
 
-    if lemma != "#":  # Which is used for Greek words
-        morph = line[67:77]
+    @staticmethod
+    def apn_line(line: str) -> typing.Optional[dict]:
+        """ Parse a single line into each information
+
+        :param line: Input line from APN
+        :return: Dictionary representing the information about the token
+        """
+        line = line.replace("\n", "")
+        if not line.strip():
+            return None
+        lemma, lemma_n = _lemma.match(line[:30]).groups()
+        sent, *_ = _sent.match(line[:30]).groups()
+        form = _token.sub("\g<token>", line[30:55].strip())
+        _ = line[55:67]
+        morph = line[67:78]
         pos = line[78:].replace(" ", "") or morph[0]
-    else:
-        morph = ""
-        pos = ""
 
-    return {"lemma": lemma, "lemma_n": lemma_n, "form": form, "morph": morph, "pos": pos,
-            "new": sent}
+        return {"lemma": lemma, "lemma_n": lemma_n, "form": form, "morph": morph, "pos": pos,
+                "new": sent}
 
+    def __call__(self, file):
+        """ Take a single file path and transform the data into
+            a new TSV file
 
-def convert_apn(file: str, transform_morph: bool=True, line_parser: typing.Callable=parse_line,
-                no_disambiguation : bool = False) -> dict:
-    """ Take a single file path and transform the data into
-    a new TSV file
+            :param file: File to read
+            :return: Dict with "content" for String representation of the TSV conversion and "file" for original filepath
+            """
+        print("Treating " + file)
+        error = []
+        content = "form\tlemma\tmorph\tpos\tindex\n"
 
-    :param file: File to read
-    :param transform_morph: Morphological information transformation
-    :param line_parser: Function to use to parse files
-    :param no_disambiguation: Removes `_\w` from the lemma information
-    :return: Dict with "content" for String representation of the TSV conversion and "file" for original filepath
-    """
-    print("Treating " + file)
-    error = []
-    content = "form\tlemma\tmorph\tpos\tindex\n"
-    with open(file) as f:
-        last = False
-        try:
-            for line in f.readlines():
-                try:
-                    annotation = line_parser(line)
-                except Exception as E:
-                    error.append(line)
-                    raise E
+        # Choose line parser
+        line_parser = self.apn_line
+        if self.bpn:
+            line_parser = self.bpn_line
 
-                # If we were able to parse
-                if annotation:
+        with open(file) as f:
+            last = False
+            try:
+                for line in f.readlines():
+                    try:
+                        annotation = line_parser(line)
+                    except Exception as E:
+                        error.append(line)
+                        raise E
 
-                    # If we want to transform the morph to another format
-                    if transform_morph:
-                        if annotation["morph"] != "":  # Safe keeping against empty morph
-                            annotation.update(convert_morph(annotation["morph"]))
-                            if "ERROR|" in annotation["morph"]:
-                                error.append(line)
-                                annotation["morph"] = annotation["morph"].replace("ERROR|", "")
+                    # If we were able to parse
+                    if annotation:
 
-                    lemma = annotation["lemma"]+"_"+annotation["lemma_n"]
-                    if no_disambiguation:
-                        lemma = lemma.split("_")[0]
+                        # If we want to transform the morph to another format
+                        if self.transform_morph:
+                            if annotation["morph"] != "":  # Safe keeping against empty morph
+                                annotation.update(convert_morph(annotation["morph"]))
+                                if "ERROR|" in annotation["morph"]:
+                                    error.append(line)
+                                    annotation["morph"] = annotation["morph"].replace("ERROR|", "")
 
-                    if annotation["new"] != last and last != False:
-                        content += "\n"
+                        lemma = annotation["lemma"] + "_" + annotation["lemma_n"]
+                        if self.no_disambiguation:
+                            lemma = lemma.split("_")[0]
 
-                    content += "\t".join([
-                        annotation["form"],
-                        lemma,
-                        annotation["morph"],
-                        annotation["pos"],
-                        annotation["new"]
-                    ])+"\n"
+                        if self.lowercase:
+                            lemma = lemma.lower()
 
-                    last = annotation["new"]
+                        if annotation["new"] != last and last != False:
+                            content += "\n"
 
-        except Exception as E:
-            error.append(line)
+                        content += "\t".join([
+                            annotation["form"],
+                            lemma,
+                            annotation["morph"],
+                            annotation["pos"],
+                            annotation["new"]
+                        ]) + "\n"
 
-    return {"path": file, "content": content, "error": error}
+                        last = annotation["new"]
 
+            except Exception as E:
+                error.append(line)
 
-def convert_bpn_nodis(file: str) -> dict:
-    return convert_apn(file=file, line_parser=parse_line_bpn, no_disambiguation=True)
-
-
-def convert_bpn(file: str, transform_morph: bool=True, no_disambiguation: bool = False) -> dict:
-    return convert_apn(file=file, line_parser=parse_line_bpn)
-
-
-def convert_apn_light(file: str) -> dict:
-    """ Convert an APN file without changing the Morph code
-
-    :param file: Path to the file to be read
-    :return: Dictionary containing the name of the file (`path`)
-             and the converted `content`
-    """
-    return convert_apn(file, False)
+        return {"path": file, "content": content, "error": error}
 
 
 _cat = {
@@ -316,7 +319,7 @@ def write(path: str, content: str, output: str, extension: str = "APN", error: t
 
 
 def cli(source: str, output: str, threads: int = 1, enhanced_morph: bool=False,
-        bpn: bool=False, no_disambiguation: bool = False):
+        bpn: bool=False, no_disambiguation: bool = False, lowercase : bool = False):
     """ Convert APN/BPN files in source dir to tabular data in output dir
 
     :param source: A folder path as string containing APN/BPN
@@ -325,6 +328,7 @@ def cli(source: str, output: str, threads: int = 1, enhanced_morph: bool=False,
     :param enhanced_morph: Enhance the morphological information
     :param bpn: Search and parse BPN instead of APN
     :param no_disambiguation: Remove disambiguation from lemma
+    :param lowercase: Lowercase the lemma value
     """
     extension = "APN"
     if bpn:
@@ -338,16 +342,9 @@ def cli(source: str, output: str, threads: int = 1, enhanced_morph: bool=False,
     # Create directory
     os.makedirs(output, exist_ok=True)
 
-    if extension == "BPN":
-        if no_disambiguation:
-            convert_fn = convert_bpn_nodis
-        else:
-            convert_fn = convert_bpn
-    else:
-        if enhanced_morph:
-            convert_fn = convert_apn
-        else:
-            convert_fn = convert_apn_light
+    bpn = extension == "BPN"
+    convert_fn = Parser(transform_morph=enhanced_morph, bpn=bpn,
+                        no_disambiguation=no_disambiguation, lowercase=lowercase)
 
     # Process as threads
     with multiprocessing.Pool(processes=threads) as pool:
@@ -388,6 +385,8 @@ if __name__ == '__main__':
                      help="Replace morphology tags from LASLA with more conventional ones")
     arg.add_argument("--no-disambiguation", dest="no_disambiguation", action="store_true", default=False,
                      help="Does not keep lemma disambiguation")
+    arg.add_argument("--lowercase", dest="lowercase", action="store_true", default=False,
+                     help="Lowercase the lemma value")
     args = arg.parse_args()
     cli(args.source, args.output, args.threads, args.enhanced_morph, bpn=args.bpn,
-        no_disambiguation=args.no_disambiguation)
+        no_disambiguation=args.no_disambiguation, lowercase=args.lowercase)
