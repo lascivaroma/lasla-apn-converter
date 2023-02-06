@@ -231,8 +231,9 @@ class Parser:
             pos = "OUT"
             form = lemma = unicodedata.normalize("NFKD", beta_code.beta_code_to_greek(form[1:-1]))
         else:
-            morph = ""
-            pos = ""
+            # If the lemma is #, then return None
+            # print(lemma, form)
+            return None
 
         if " " in form:
             self.composite.add(form)
