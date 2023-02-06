@@ -7,7 +7,8 @@ import multiprocessing
 import re
 import typing
 import argparse
-
+import beta_code
+import unicodedata
 
 _lemma = re.compile("\w{3}[&=]\d+([A-Z]+)\s+(\w?)")
 _sent = re.compile("\w{3}[&=](\d+)")
@@ -206,6 +207,7 @@ class Parser:
         line = line.replace("\n", "")
         if not line.strip() or line.endswith("#            "):
             return None
+
         connection_sign = line[3]
         if connection_sign == "#":  # Forme de contraction, présent à partir du deuxième lemme
             return None  # At the moment, let's not care about it
@@ -224,6 +226,10 @@ class Parser:
             if len(line) == 80:  # Some lines are not complete
                 morph += line[79]
             pos = line[77:79].replace(" ", "") or morph[0]
+        elif form[0] == "$":
+            morph = "MORPH=EMPTY"
+            pos = "OUT"
+            form = lemma = unicodedata.normalize("NFKD", beta_code.beta_code_to_greek(form[1:-1]))
         else:
             morph = ""
             pos = ""
@@ -278,13 +284,14 @@ class Parser:
                         annotation = line_parser(line)
                     except Exception as E:
                         error.append(line + "\t----\t" + str(E))
-
+                        print(line)
                     # If we were able to parse
                     if annotation:
 
                         # If we want to transform the morph to another format
                         if self.transform_morph:
-                            if annotation["morph"] != "":  # Safe keeping against empty morph
+                            if annotation["morph"] != "" and annotation["morph"] != "MORPH=EMPTY":
+                                # Safe keeping against empty morph
                                 annotation.update(self.convert_morph(annotation["morph"]))
                                 if "ERROR|" in annotation["morph"]:
                                     annotation["morph"] = annotation["morph"].replace("ERROR|", "")
@@ -303,6 +310,15 @@ class Parser:
 
                         if annotation["new"] != last and last != False:
                             content += "\n"
+
+                        if "$" in line:
+                            print("\t".join([
+                            annotation["form"],
+                            lemma,
+                            annotation["morph"],
+                            annotation["pos"],
+                            annotation["new"]
+                        ]) + "\n")
 
                         content += "\t".join([
                             annotation["form"],
